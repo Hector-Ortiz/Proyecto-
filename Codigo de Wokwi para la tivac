@@ -1,0 +1,241 @@
+// codigo de wokwi: https://wokwi.com/projects/380349673062612993
+// hector Andres Ortiz Reyes 20004
+// proyecto digital #2
+// Librerias que se estan usando
+#include <Adafruit_GFX.h>
+#include <Adafruit_ILI9341.h>
+#include <SD.h>
+// pines de la TFT
+#define DC 2
+#define CS 15
+Adafruit_ILI9341 tft = Adafruit_ILI9341(CS, DC);
+// pines de los botones, y buzzer que se encuentran en el circuito
+const int buzzer = 13;
+const int termistor = 35;
+const int botonC = 26;
+// valores de temperatura fijos en el calculo de temperatura 
+float rAux = 10000.0;
+float vcc = 3.3; // temperatura del termistor
+float beta = 3977.0;
+float temp0 = 298.0;
+float r0 = 10000.0;
+
+// temperatura que va a variar en todo el proceso
+float vm = 0.0; 
+float rntc = 0.0;
+float temperaturaK = 0.0;
+
+bool sonidoboton = false;
+unsigned long inicio = 0;
+unsigned long duracionT = 3000;
+unsigned long inicioTemperatura = 0;
+unsigned long duracionTemperatura = 5000;
+int Celcius = 0;
+int parteDecimal = 0;
+String mensaje = "";
+
+// sonido del boton cuando este es presionado
+void notificarBotonPresionado() {
+  tone(buzzer, 3000);
+  delay(100);
+  noTone(buzzer);
+}
+// SetUp de todo el programa
+void setup() {
+  Serial.begin(9600);
+  pinMode(buzzer, OUTPUT);
+  pinMode(botonC, INPUT_PULLUP);
+// inicio de la pantalla TFT al encender el circuito
+  tft.begin();
+  tft.setRotation(0);
+  tft.fillScreen(ILI9341_BLACK);
+  tft.setCursor(0, tft.height() / 2);
+  tft.setTextColor(ILI9341_WHITE);
+  tft.setTextSize(4);
+  tft.print("TERMOMETRO");
+// sonido de entrada generado por el buzzer 
+  tone(buzzer, 5000); // frecuencia del buzzer para que suene
+  delay(100); // duracion del sonido
+  tone(buzzer, 0);
+  delay(100);
+  tone(buzzer, 5000);
+  delay(100);
+  tone(buzzer, 0);
+  delay(100);
+  tone(buzzer, 5000);
+  delay(100);
+  tone(buzzer, 0);
+  delay(100);
+  tone(buzzer, 4200);
+  delay(750);
+  tone(buzzer, 4500);
+  delay(100);
+  tone(buzzer, 0);
+  delay(100);
+  tone(buzzer, 4500);
+  delay(100);
+  tone(buzzer, 0);
+  delay(100);
+  tone(buzzer, 4500);
+  delay(100);
+  tone(buzzer, 0);
+  delay(100);
+  tone(buzzer, 4000);
+  delay(750);
+  noTone(buzzer);
+// iniciacion de la SD
+  if (SD.begin(5)) { // si la SD esta conectada mostrara un mensaje de conectado
+    tft.setCursor(0, tft.height() / 2 + 70);
+    tft.setTextSize(3);
+    tft.print("Tarjeta MicroSD: Conectada");
+    tone(buzzer, 4500);
+    delay(100);
+    tone(buzzer, 0);
+    delay(100);
+    tone(buzzer, 4000);
+    delay(100);
+    tone(buzzer, 4500);
+    delay(100);
+    tone(buzzer, 0);
+    delay(100);
+    tone(buzzer, 4000);
+    delay(100);
+    noTone(buzzer);
+  } else { // si la SD no esta conectada lanzara una alarma para que el usuario sepa
+    tft.fillRect(0, tft.height() / 2 + 70, tft.width(), 40, ILI9341_RED);
+    tft.setCursor(0, tft.height() / 2 + 75);
+    tft.setTextSize(2);
+    tft.print("Tarjeta MicroSD: No Conectada");
+    tone(buzzer, 4500);
+    delay(350);
+    tone(buzzer, 0);
+    delay(100);
+    tone(buzzer, 4500);
+    delay(350);
+    tone(buzzer, 0);
+    delay(100);
+    tone(buzzer, 4500);
+    delay(350);
+    noTone(buzzer);
+  }
+}
+
+void loop() {
+  // Pantalla de analizando para mostrar que esta haciendo el analisis solo cuando se preciona el boton
+  if (digitalRead(botonC) == LOW) {
+    if (!sonidoboton) {
+      sonidoboton = true;
+      inicio = millis();
+      tft.fillScreen(ILI9341_BLACK);
+      tft.setCursor(40, tft.height() / 2);
+      tft.setTextColor(ILI9341_WHITE);
+      tft.setTextSize(2);
+      tft.print("ANALIZANDO");
+      notificarBotonPresionado();
+    }
+  }
+// calculo de la temepratura y conversion del dato en decimales para que se entienda
+  if (sonidoboton) {
+    if (millis() - inicio >= duracionT) {
+      sonidoboton = false;
+      inicioTemperatura = millis();
+      Celcius = 0;
+      parteDecimal = 0;
+      mensaje = "";
+// dependiendo de la temperatura se lanzara un mensaje distinto
+      while (millis() - inicioTemperatura < duracionTemperatura) {
+        if (Celcius == 0) {
+          vm = (vcc / 4095) * analogRead(termistor);
+          rntc = rAux / ((vcc / vm) - 1);
+          temperaturaK = beta / (log(rntc / r0) + (beta / temp0));
+          Celcius = int((temperaturaK - 273));
+          parteDecimal = int((temperaturaK - 273) * 10) % 10;
+
+          if (Celcius < 20) { // si es menor de 20 grados se lanzara un mensaje de temperatura baja 
+            mensaje = " Temperatura     baja";
+          } else if (Celcius > 40) {// si es mayor de 40 grados se lanzara un mensaje de temperatura alta
+            mensaje = " Temperatura     alta";
+          } else {// si es mayor de 20 grados y menor de 40 grados se lanzara un mensaje de temperatura normal
+            mensaje = " Temperatura     ideal";
+          }
+// mensaje de la temperatura que se mandara a la computadora
+          Serial.print("La temperatura del paciente es de: ");
+          Serial.print(Celcius);
+          Serial.print(".");
+          Serial.print(parteDecimal);
+          Serial.println(" grados Celsius");
+        }
+
+        uint16_t color = ILI9341_GREEN;
+        if (Celcius < 20) {
+          color = ILI9341_BLUE;
+        } else if (Celcius > 40) {
+          color = ILI9341_RED;
+        }
+// color de la pantalla segun la temperatura que se muestra en la parte posterior
+        tft.fillScreen(ILI9341_BLACK);
+        tft.fillRect(0, 0, tft.width(), tft.height() / 3, color);
+        tft.fillRect(0, 2 * tft.height() / 3, tft.width(), tft.height() / 3, color);
+        tft.setCursor(40, tft.height() / 2);
+        tft.setTextColor(ILI9341_WHITE);
+        tft.setTextSize(4);
+        tft.print(Celcius);
+        tft.print(".");
+        tone(buzzer, 5000);
+        delay(100);
+        tone(buzzer, 0);
+        delay(100);
+        tone(buzzer, 4500);
+        delay(100);
+        noTone(buzzer);
+        tft.print(parteDecimal);
+        tft.setCursor(0, 20);
+        tft.setTextColor(ILI9341_WHITE);
+        tft.setTextSize(3.5);
+        tft.print(mensaje);
+        delay(8000);
+      }
+// despues de 8 segundos se mostrara un mensaje de regreso a comparacion del menu
+      tft.fillScreen(ILI9341_BLACK);
+      tft.setCursor(0, tft.height() / 2);
+      tft.setTextColor(ILI9341_WHITE);
+      tft.setTextSize(4);
+      tft.print("TERMOMETRO");
+
+      if (SD.begin(5)) {
+        tft.setCursor(0, tft.height() / 2 + 70);
+        tft.setTextSize(3);
+        tft.print("Tarjeta MicroSD: Conectada");
+        tone(buzzer, 4500);
+        delay(100);
+        tone(buzzer, 0);
+        delay(100);
+        tone(buzzer, 4000);
+        delay(100);
+        tone(buzzer, 4500);
+        delay(100);
+        tone(buzzer, 0);
+        delay(100);
+        tone(buzzer, 4000);
+        delay(100);
+        noTone(buzzer);
+      } else {
+        tft.fillRect(0, tft.height() / 2 + 70, tft.width(), 40, ILI9341_RED);
+        tft.setCursor(0, tft.height() / 2 + 75);
+        tft.setTextSize(2);
+        tft.print("Tarjeta MicroSD: No Conectada");
+        tone(buzzer, 4500);
+        delay(350);
+        tone(buzzer, 0);
+        delay(100);
+        tone(buzzer, 4500);
+        delay(350);
+        tone(buzzer, 0);
+        delay(100);
+        tone(buzzer, 4500);
+        delay(350);
+        noTone(buzzer);
+      }
+    }
+  }
+}
