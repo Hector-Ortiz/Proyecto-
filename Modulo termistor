@@ -1,0 +1,33 @@
+// Valores del modulo del termometro
+float rAux = 10000.0;
+float vcc = 3.3; // Voltaje de referencia del ESP32 (3.3V)
+float beta = 3977.0;
+float temp0 = 298.0;
+float r0 = 10000.0;
+// Variables que cambiaran a nivel decimal
+float vm = 0.0;
+float rntc = 0.0;
+float temperaturaK = 0.0;
+// Pin en donde entrara la informacion del termistor
+const int termistorPin = 35; 
+
+void setup() {
+  Serial.begin(9600);
+}
+
+void loop() {
+
+  // Bloque de cálculo
+  vm = (vcc / 4095) * analogRead(termistorPin); // Cambio y conversion de los datos que recibe el modulo a comparacion de los 4095
+  rntc = rAux / ((vcc / vm) - 1); // Calcular la resistencia de la NTC
+  temperaturaK = beta / (log(rntc / r0) + (beta / temp0)); // Calcular la temperatura en Kelvin
+
+  // Conversion de grados Kelvin a grados celcius
+  float temperaturaCelsius = temperaturaK - 273;
+
+  // Enviar la temperatura al puerto serie con un mensaje para entender la temperatura
+  Serial.print("Temperatura del paciente: ");
+  Serial.print(temperaturaCelsius);
+  Serial.println(" °C");
+  delay(1000);
+}
